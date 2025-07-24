@@ -5,43 +5,30 @@
   vars:
     project_dir: /var/lib/jenkins/workspace/shopping-chart
     compose_file: "{{ project_dir }}/docker-compose.yml"
+    node_version: "16"
 
   tasks:
 
-    # Install tools
     - name: Install required packages
       apt:
         name:
-          - jq
           - docker.io
           - docker-compose
         state: present
         update_cache: yes
 
-    - name: Enable and start Docker
+    - name: Start Docker
       systemd:
         name: docker
         state: started
         enabled: true
 
-    # Extract node version from package.json
-    - name: Extract Node.js version from package.json
-      shell: "jq -r '.engines.node' package.json"
-      args:
-        chdir: "{{ project_dir }}"
-        executable: /bin/bash
-      register: node_version_raw
-
-    - name: Clean node version string
-      set_fact:
-        node_version: "{{ node_version_raw.stdout | regex_search('[0-9]+') }}"
-
-    - name: Show Node.js version
+    - name: Show selected Node.js version
       debug:
         msg: "Using Node.js version: {{ node_version }}"
 
-    # Template docker-compose.yml dynamically
-    - name: Template docker-compose.yml with Node.js version
+    # Template docker-compose.yml with hardcoded Node version
+    - name: Generate docker-compose.yml
       copy:
         dest: "{{ compose_file }}"
         content: |
@@ -64,14 +51,12 @@
               environment:
                 NODE_ENV: production
 
-    # Stop previous container if it exists
-    - name: Stop previous container if exists
+    - name: Stop previous container
       shell: docker rm -f shopping-cart || true
       args:
         executable: /bin/bash
 
-    # Run the app via Docker Compose
-    - name: Run shopping-cart via docker-compose
+    - name: Run the app using Docker Compose
       shell: docker-compose up -d
       args:
         chdir: "{{ project_dir }}"
