@@ -4,6 +4,7 @@
   become: false
   tasks:
     - name: Change to project directory
-      ansible.builtin.command: pnpm build
+      ansible.builtin.command:
+        cmd: pnpm install && pnpm build
       args:
-        chdir: "{{ playbook_dir }}"
+        chdir: /var/lib/jenkins/workspace/shopping-chart
