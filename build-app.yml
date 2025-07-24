@@ -1,0 +1,9 @@
+---
+- name: Build Next.js App with PNPM
+  hosts: localhost
+  become: false
+  tasks:
+    - name: Change to project directory
+      ansible.builtin.command: pnpm build
+      args:
+        chdir: "{{ playbook_dir }}"
