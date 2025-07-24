@@ -1,12 +1,21 @@
 ---
 - name: Install and Build Next.js Shopping Cart App
   hosts: localhost
-  become: false
+  become: true
 
   vars:
     project_dir: /var/lib/jenkins/workspace/shopping-chart
 
   tasks:
+    - name: Ensure node_modules directory exists and has correct ownership
+      file:
+        path: "{{ project_dir }}/node_modules"
+        state: directory
+        owner: jenkins
+        group: devops
+        mode: '0775'
+        recurse: yes
+
     - name: Install dependencies with PNPM
       ansible.builtin.shell: pnpm install
       args:
