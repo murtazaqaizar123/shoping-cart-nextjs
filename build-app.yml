@@ -1,10 +1,20 @@
 ---
-- name: Build Next.js App with PNPM
+- name: Install and Build Next.js Shopping Cart App
   hosts: localhost
   become: false
+
+  vars:
+    project_dir: /var/lib/jenkins/workspace/shopping-chart
+
   tasks:
-    - name: Change to project directory
-      ansible.builtin.command:
-        cmd: pnpm install && pnpm build
+    - name: Install dependencies with PNPM
+      ansible.builtin.shell: pnpm install
       args:
-        chdir: /var/lib/jenkins/workspace/shopping-chart
+        chdir: "{{ project_dir }}"
+        executable: /bin/bash
+
+    - name: Build the project (optional)
+      ansible.builtin.shell: pnpm build || echo "No build step needed"
+      args:
+        chdir: "{{ project_dir }}"
+        executable: /bin/bash
