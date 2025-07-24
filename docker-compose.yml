@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   shopping-cart:
-    image: node:{{ node_version }}-alpine
+    image: node:16-alpine
     container_name: shopping-cart
     working_dir: /app
     ports:
