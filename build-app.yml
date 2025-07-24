@@ -1,81 +1,78 @@
-- name: Install and Build Next.js Shopping Cart App with Docker
+- name: Build and Run Next.js Shopping Cart using Docker Compose
   hosts: localhost
   become: true
 
   vars:
     project_dir: /var/lib/jenkins/workspace/shopping-chart
+    compose_file: "{{ project_dir }}/docker-compose.yml"
 
   tasks:
 
-    # Install required packages
-    - name: Install required packages (curl, jq, build tools, Docker)
+    # Install tools
+    - name: Install required packages
       apt:
         name:
-          - curl
           - jq
-          - build-essential
           - docker.io
+          - docker-compose
         state: present
         update_cache: yes
 
-    # Read Node.js version from package.json
-    - name: Read Node.js version from package.json
-      shell: "jq -r '.engines.node' package.json"
-      args:
-        chdir: "{{ project_dir }}"
-        executable: /bin/bash
-      register: node_version_raw
-
-    # Extract just the major version
-    - name: Extract major Node.js version number
-      set_fact:
-        node_version: "{{ node_version_raw.stdout | regex_search('[0-9]+') }}"
-
-    - name: Print detected Node.js version
-      debug:
-        msg: "Detected Node.js version from package.json: {{ node_version }}"
-
-    # Install Node.js (in case needed outside Docker)
-    - name: Install Node.js
-      shell: |
-        curl -fsSL https://deb.nodesource.com/setup_{{ node_version }}.x | bash -
-        apt-get install -y nodejs
-      args:
-        executable: /bin/bash
-
-    # Install PNPM globally
-    - name: Install PNPM globally
-      shell: npm install -g pnpm
-      args:
-        executable: /bin/bash
-
-    # Ensure Docker is running
     - name: Enable and start Docker
       systemd:
         name: docker
         state: started
         enabled: true
 
-    # Optional: Remove old Docker container if it exists
-    - name: Stop old Docker container
+    # Extract node version from package.json
+    - name: Extract Node.js version from package.json
+      shell: "jq -r '.engines.node' package.json"
+      args:
+        chdir: "{{ project_dir }}"
+        executable: /bin/bash
+      register: node_version_raw
+
+    - name: Clean node version string
+      set_fact:
+        node_version: "{{ node_version_raw.stdout | regex_search('[0-9]+') }}"
+
+    - name: Show Node.js version
+      debug:
+        msg: "Using Node.js version: {{ node_version }}"
+
+    # Template docker-compose.yml dynamically
+    - name: Template docker-compose.yml with Node.js version
+      copy:
+        dest: "{{ compose_file }}"
+        content: |
+          version: '3.8'
+          services:
+            shopping-cart:
+              image: node:{{ node_version }}-alpine
+              container_name: shopping-cart
+              working_dir: /app
+              ports:
+                - "3000:3000"
+              volumes:
+                - .:/app
+              command: sh -c "
+                npm install -g pnpm &&
+                pnpm install &&
+                pnpm build &&
+                pnpm start
+              "
+              environment:
+                NODE_ENV: production
+
+    # Stop previous container if it exists
+    - name: Stop previous container if exists
       shell: docker rm -f shopping-cart || true
       args:
         executable: /bin/bash
 
-    # Build Docker image
-    - name: Build Docker image
-      shell: docker build -t shopping-cart:latest .
+    # Run the app via Docker Compose
+    - name: Run shopping-cart via docker-compose
+      shell: docker-compose up -d
       args:
         chdir: "{{ project_dir }}"
-        executable: /bin/bash
-
-    # Run the Docker container
-    - name: Run shopping-cart container
-      shell: |
-        docker run -d \
-          --name shopping-cart \
-          -p 3000:3000 \
-          -e NODE_ENV=production \
-          shopping-cart:latest
-      args:
         executable: /bin/bash
