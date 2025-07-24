@@ -8,7 +8,7 @@
   tasks:
 
     # Install base tools
-    - name: Install dependencies required for setup
+    - name: Install required packages (curl, jq, build tools)
       apt:
         name:
           - curl
@@ -25,8 +25,7 @@
         executable: /bin/bash
       register: node_version_raw
 
-    # Extract major version (e.g., 18 from '>=18.16.0')
-    - name: Extract major Node.js version
+    - name: Extract major Node.js version number
       set_fact:
         node_version: "{{ node_version_raw.stdout | regex_search('[0-9]+') }}"
 
@@ -35,26 +34,25 @@
         msg: "Installing Node.js version {{ node_version }}"
 
     # Install Node.js using NodeSource
-    - name: Install Node.js
+    - name: Install Node.js from NodeSource
       shell: |
         curl -fsSL https://deb.nodesource.com/setup_{{ node_version }}.x | bash -
         apt-get install -y nodejs
       args:
         executable: /bin/bash
 
-    # Install PNPM globally
+    # Install PNPM and PM2 globally
     - name: Install PNPM globally
       shell: npm install -g pnpm
       args:
         executable: /bin/bash
 
-    # Install PM2 globally
     - name: Install PM2 globally
       shell: npm install -g pm2
       args:
         executable: /bin/bash
 
-    # Clean old build artifacts
+    # Clean old files
     - name: Remove old .next folder
       file:
         path: "{{ project_dir }}/.next"
@@ -70,7 +68,7 @@
         path: "{{ project_dir }}/pnpm-lock.yaml"
         state: absent
 
-    # Ensure clean permissions
+    # Set permissions
     - name: Ensure node_modules directory exists
       file:
         path: "{{ project_dir }}/node_modules"
@@ -80,14 +78,14 @@
         mode: '0775'
         recurse: yes
 
-    # Install project dependencies using local pnpm
-    - name: Install dependencies with PNPM
+    # Install project dependencies
+    - name: Install dependencies using PNPM
       shell: pnpm install
       args:
         chdir: "{{ project_dir }}"
         executable: /bin/bash
 
-    # Build Next.js project (with OpenSSL fix)
+    # Build the Next.js app with OpenSSL fix
     - name: Build the Next.js project
       shell: pnpm exec next build
       environment:
@@ -96,8 +94,8 @@
         chdir: "{{ project_dir }}"
         executable: /bin/bash
 
-    # (Optional) Check installed Next.js version
-    - name: Show Next.js version used
+    # Confirm version used (optional debug)
+    - name: Show Next.js version
       shell: pnpm exec next --version
       args:
         chdir: "{{ project_dir }}"
@@ -108,11 +106,11 @@
       debug:
         msg: "Next.js version used: {{ next_version.stdout }}"
 
-    # Start the app using PM2
-    - name: Start Next.js app using PM2
+    # Start using PM2 via ecosystem file
+    - name: Start Next.js app using PM2 with ecosystem file
       shell: |
         pm2 delete shopping-cart || true
-        pm2 start pnpm --name shopping-cart -- start
+        pm2 start ecosystem.config.js
         pm2 save
       args:
         chdir: "{{ project_dir }}"
