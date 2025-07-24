@@ -1,0 +1,12 @@
+---
+- name: Start Next.js App with PM2
+  hosts: localhost
+  become: false
+  tasks:
+    - name: Start the app with PM2
+      ansible.builtin.shell: pm2 start "pnpm start" --name shopping-cart
+      args:
+        chdir: "{{ playbook_dir }}"
+
+    - name: Save PM2 process list
+      ansible.builtin.shell: pm2 save
