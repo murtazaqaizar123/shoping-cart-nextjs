@@ -7,14 +7,17 @@
 
   tasks:
 
-    - name: Install dependencies required for setup (curl, jq)
+    # Install needed tools
+    - name: Install dependencies required for setup (curl, jq, pm2)
       apt:
-        name: 
+        name:
           - curl
           - jq
+          - build-essential
         state: present
         update_cache: yes
 
+    # Read Node.js version from package.json
     - name: Read Node.js version from package.json
       shell: "jq -r '.engines.node' package.json"
       args:
@@ -22,14 +25,16 @@
         executable: /bin/bash
       register: node_version_raw
 
-    - name: Extract clean Node.js major version number (e.g., '18' from '>=18.x' or '^18.16.0')
+    # Clean up the version (extract just '18' from things like '>=18.16.0' or '^18')
+    - name: Extract major Node.js version number
       set_fact:
         node_version: "{{ node_version_raw.stdout | regex_search('[0-9]+') }}"
 
-    - name: Debug - Print Node.js version
+    - name: Print detected Node.js version
       debug:
         msg: "Installing Node.js version {{ node_version }} from package.json"
 
+    # Install Node.js from NodeSource
     - name: Install Node.js using NodeSource
       shell: |
         curl -fsSL https://deb.nodesource.com/setup_{{ node_version }}.x | bash -
@@ -37,12 +42,26 @@
       args:
         executable: /bin/bash
 
+    # Install PNPM globally
     - name: Install PNPM globally
       shell: npm install -g pnpm
       args:
         executable: /bin/bash
 
-    - name: Ensure node_modules directory exists and has correct ownership
+    # Install PM2 globally
+    - name: Install PM2 globally
+      shell: npm install -g pm2
+      args:
+        executable: /bin/bash
+
+    # Clean old build folder
+    - name: Remove old .next build folder
+      file:
+        path: "{{ project_dir }}/.next"
+        state: absent
+
+    # Ensure node_modules dir exists with correct permissions
+    - name: Ensure node_modules directory exists
       file:
         path: "{{ project_dir }}/node_modules"
         state: directory
@@ -51,14 +70,26 @@
         mode: '0775'
         recurse: yes
 
-    - name: Install project dependencies with PNPM
+    # Install project dependencies
+    - name: Install dependencies with PNPM
       shell: pnpm install
       args:
         chdir: "{{ project_dir }}"
         executable: /bin/bash
 
-    - name: Build the project
-      shell: pnpm build || echo "No build step needed"
+    # Build the project (fail if build fails)
+    - name: Build the Next.js project
+      shell: pnpm build
+      args:
+        chdir: "{{ project_dir }}"
+        executable: /bin/bash
+
+    # Start with PM2
+    - name: Start Next.js app using PM2
+      shell: |
+        pm2 delete shopping-cart || true
+        pm2 start pnpm --name shopping-cart -- start
+        pm2 save
       args:
         chdir: "{{ project_dir }}"
         executable: /bin/bash
