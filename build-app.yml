@@ -1,4 +1,3 @@
----
 - name: Install and Build Next.js Shopping Cart App
   hosts: localhost
   become: true
@@ -7,6 +6,42 @@
     project_dir: /var/lib/jenkins/workspace/shopping-chart
 
   tasks:
+
+    - name: Install dependencies required for setup (curl, jq)
+      apt:
+        name: 
+          - curl
+          - jq
+        state: present
+        update_cache: yes
+
+    - name: Read Node.js version from package.json
+      shell: "jq -r '.engines.node' package.json"
+      args:
+        chdir: "{{ project_dir }}"
+        executable: /bin/bash
+      register: node_version_raw
+
+    - name: Extract clean Node.js major version number (e.g., '18' from '>=18.x' or '^18.16.0')
+      set_fact:
+        node_version: "{{ node_version_raw.stdout | regex_search('[0-9]+') }}"
+
+    - name: Debug - Print Node.js version
+      debug:
+        msg: "Installing Node.js version {{ node_version }} from package.json"
+
+    - name: Install Node.js using NodeSource
+      shell: |
+        curl -fsSL https://deb.nodesource.com/setup_{{ node_version }}.x | bash -
+        apt-get install -y nodejs
+      args:
+        executable: /bin/bash
+
+    - name: Install PNPM globally
+      shell: npm install -g pnpm
+      args:
+        executable: /bin/bash
+
     - name: Ensure node_modules directory exists and has correct ownership
       file:
         path: "{{ project_dir }}/node_modules"
@@ -16,14 +51,14 @@
         mode: '0775'
         recurse: yes
 
-    - name: Install dependencies with PNPM
-      ansible.builtin.shell: pnpm install
+    - name: Install project dependencies with PNPM
+      shell: pnpm install
       args:
         chdir: "{{ project_dir }}"
         executable: /bin/bash
 
-    - name: Build the project (optional)
-      ansible.builtin.shell: pnpm build || echo "No build step needed"
+    - name: Build the project
+      shell: pnpm build || echo "No build step needed"
       args:
         chdir: "{{ project_dir }}"
         executable: /bin/bash
