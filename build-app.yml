@@ -1,4 +1,4 @@
-- name: Install and Build Next.js Shopping Cart App
+- name: Install and Build Next.js Shopping Cart App with Docker
   hosts: localhost
   become: true
 
@@ -7,13 +7,14 @@
 
   tasks:
 
-    # Install base tools
-    - name: Install required packages (curl, jq, build tools)
+    # Install required packages
+    - name: Install required packages (curl, jq, build tools, Docker)
       apt:
         name:
           - curl
           - jq
           - build-essential
+          - docker.io
         state: present
         update_cache: yes
 
@@ -25,93 +26,56 @@
         executable: /bin/bash
       register: node_version_raw
 
+    # Extract just the major version
     - name: Extract major Node.js version number
       set_fact:
         node_version: "{{ node_version_raw.stdout | regex_search('[0-9]+') }}"
 
-    - name: Show detected Node.js version
+    - name: Print detected Node.js version
       debug:
-        msg: "Installing Node.js version {{ node_version }}"
+        msg: "Detected Node.js version from package.json: {{ node_version }}"
 
-    # Install Node.js using NodeSource
-    - name: Install Node.js from NodeSource
+    # Install Node.js (in case needed outside Docker)
+    - name: Install Node.js
       shell: |
         curl -fsSL https://deb.nodesource.com/setup_{{ node_version }}.x | bash -
         apt-get install -y nodejs
       args:
         executable: /bin/bash
 
-    # Install PNPM and PM2 globally
+    # Install PNPM globally
     - name: Install PNPM globally
       shell: npm install -g pnpm
       args:
         executable: /bin/bash
 
-    - name: Install PM2 globally
-      shell: npm install -g pm2
+    # Ensure Docker is running
+    - name: Enable and start Docker
+      systemd:
+        name: docker
+        state: started
+        enabled: true
+
+    # Optional: Remove old Docker container if it exists
+    - name: Stop old Docker container
+      shell: docker rm -f shopping-cart || true
       args:
         executable: /bin/bash
 
-    # Clean old files
-    - name: Remove old .next folder
-      file:
-        path: "{{ project_dir }}/.next"
-        state: absent
-
-    - name: Remove old node_modules
-      file:
-        path: "{{ project_dir }}/node_modules"
-        state: absent
-
-    - name: Remove old pnpm lock file
-      file:
-        path: "{{ project_dir }}/pnpm-lock.yaml"
-        state: absent
-
-    # Set permissions
-    - name: Ensure node_modules directory exists
-      file:
-        path: "{{ project_dir }}/node_modules"
-        state: directory
-        owner: jenkins
-        group: devops
-        mode: '0775'
-        recurse: yes
-
-    # Install project dependencies
-    - name: Install dependencies using PNPM
-      shell: pnpm install
+    # Build Docker image
+    - name: Build Docker image
+      shell: docker build -t shopping-cart:latest .
       args:
         chdir: "{{ project_dir }}"
         executable: /bin/bash
 
-    # Build the Next.js app with OpenSSL fix
-    - name: Build the Next.js project
-      shell: pnpm exec next build
-      environment:
-        NODE_OPTIONS: "--openssl-legacy-provider"
-      args:
-        chdir: "{{ project_dir }}"
-        executable: /bin/bash
-
-    # Confirm version used (optional debug)
-    - name: Show Next.js version
-      shell: pnpm exec next --version
-      args:
-        chdir: "{{ project_dir }}"
-        executable: /bin/bash
-      register: next_version
-
-    - name: Print detected Next.js version
-      debug:
-        msg: "Next.js version used: {{ next_version.stdout }}"
-
-    # Start using PM2 via ecosystem file
-    - name: Start Next.js app using PM2 with ecosystem file
+    # Run the Docker container
+    - name: Run shopping-cart container
       shell: |
-        pm2 delete shopping-cart || true
-        pm2 start ecosystem.config.js
-        pm2 save
+        docker run -d \
+          --name shopping-cart \
+          -p 3000:3000 \
+          -e NODE_ENV=production \
+          shopping-cart:latest
       args:
-        chdir: "{{ project_dir }}"
         executable: /bin/bash
