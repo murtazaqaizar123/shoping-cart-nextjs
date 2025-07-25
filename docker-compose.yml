@@ -12,7 +12,6 @@
             - "3000:3000"
           volumes:
             - .:/app
-          command: >
-            sh -c "npm install -g pnpm && pnpm install && pnpm build && pnpm start"
+          command: "sh -c 'npm install -g pnpm && pnpm install && pnpm build && pnpm start'"
           environment:
             NODE_ENV: production
