@@ -1,15 +1,13 @@
-- name: Build and Run Next.js Shopping Cart using Docker Compose
+- name: Build and Run Shopping Cart App (single docker-compose call)
   hosts: localhost
   become: true
 
   vars:
     project_dir: /var/lib/jenkins/workspace/shopping-chart
-    compose_file: "{{ project_dir }}/docker-compose.yml"
-    node_version: "16"
 
   tasks:
 
-    - name: Install required packages
+    - name: Install Docker and Docker Compose
       apt:
         name:
           - docker.io
@@ -17,46 +15,19 @@
         state: present
         update_cache: yes
 
-    - name: Start Docker
+    - name: Start Docker service
       systemd:
         name: docker
         state: started
         enabled: true
 
-    - name: Show selected Node.js version
-      debug:
-        msg: "Using Node.js version: {{ node_version }}"
-
-    # Template docker-compose.yml with hardcoded Node version
-    - name: Generate docker-compose.yml
-      copy:
-        dest: "{{ compose_file }}"
-        content: |
-          version: '3.8'
-          services:
-            shopping-cart:
-              image: node:{{ node_version }}-alpine
-              container_name: shopping-cart
-              working_dir: /app
-              ports:
-                - "3000:3000"
-              volumes:
-                - .:/app
-              command: sh -c "
-                npm install -g pnpm &&
-                pnpm install &&
-                pnpm build &&
-                pnpm start
-              "
-              environment:
-                NODE_ENV: production
-
-    - name: Stop previous container
-      shell: docker rm -f shopping-cart || true
+    - name: Clean up existing containers and volumes
+      shell: docker-compose down -v || true
       args:
+        chdir: "{{ project_dir }}"
         executable: /bin/bash
 
-    - name: Run the app using Docker Compose
+    - name: Run all containers (pnpm install, deps, build, start) in one call
       shell: docker-compose up -d
       args:
         chdir: "{{ project_dir }}"
