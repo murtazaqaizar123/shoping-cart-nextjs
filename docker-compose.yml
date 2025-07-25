@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   shopping-cart:
     image: node:18-alpine
@@ -6,11 +8,14 @@ services:
       - .:/app
     ports:
       - "3000:3000"
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: --openssl-legacy-provider
     command:
       - /bin/sh
       - -c
       - |
-        npm install -g pnpm
-        pnpm install
-        pnpm build
+        npm install -g pnpm &&
+        pnpm install &&
+        pnpm build &&
         pnpm start
