@@ -1,30 +1,39 @@
 version: '3.8'
 
+volumes:
+  node_modules_cache:
+
 services:
   install-pnpm:
     image: node:16-alpine
     working_dir: /app
     volumes:
       - .:/app
-    command: ["npm", "install", "-g", "pnpm"]
+      - node_modules_cache:/app/node_modules
+    entrypoint: ["npm", "install", "-g", "pnpm"]
+    restart: "no"
 
   install-deps:
     image: node:16-alpine
     working_dir: /app
     volumes:
       - .:/app
-    command: ["pnpm", "install"]
+      - node_modules_cache:/app/node_modules
+    entrypoint: ["pnpm", "install"]
     depends_on:
       - install-pnpm
+    restart: "no"
 
   build-app:
     image: node:16-alpine
     working_dir: /app
     volumes:
       - .:/app
-    command: ["pnpm", "build"]
+      - node_modules_cache:/app/node_modules
+    entrypoint: ["pnpm", "build"]
     depends_on:
       - install-deps
+    restart: "no"
 
   start-app:
     image: node:16-alpine
@@ -33,8 +42,10 @@ services:
       - "3000:3000"
     volumes:
       - .:/app
-    command: ["pnpm", "start"]
+      - node_modules_cache:/app/node_modules
+    entrypoint: ["pnpm", "start"]
     depends_on:
       - build-app
     environment:
       NODE_ENV: production
+    restart: unless-stopped
